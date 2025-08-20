@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <title>1/4096 チャレンジ</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+  <meta name="theme-color" content="#0d0d0d" />
+  <style>
+    /* ===== ベース ===== */
+    :root {
+      --bg: #0d0d0d;
+      --fg: #f2f2f2;
+      --muted: #bdbdbd;
+      --accent: #2dd4bf; /* 成功 */
+      --danger: #ef4444; /* 失敗 */
+      --btn: #1a1a1a;
+      --btnBorder: #2a2a2a;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", "Hiragino Kaku Gothic ProN",
+                   "Yu Gothic UI", "Yu Gothic", "Meiryo", sans-serif;
+    }
+    /* iOSの100vh問題対策: svh=safe viewport height */
+    .app {
+      min-height: 100svh;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 12px;
+      padding: calc(env(safe-area-inset-top) + 12px) 14px calc(env(safe-area-inset-bottom) + 14px);
+      touch-action: manipulation;
+      user-select: none;
+    }
+
+    /* ===== HUD（上部情報） ===== */
+    .hud {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      align-items: center;
+      gap: 10px;
+      font-variant-numeric: tabular-nums;
+    }
+    .title {
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .chip {
+      border: 1px solid var(--btnBorder);
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    /* ===== メイン表示 ===== */
+    .center {
+      display: grid;
+      place-items: center;
+      text-align: center;
+      gap: 12px;
+    }
+    .prob {
+      font-size: clamp(28px, 15vw, 120px);
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      line-height: 1.05;
+    }
+    .subprob {
+      color: var(--muted);
+      font-size: clamp(14px, 4.5vw, 18px);
+    }
+    .streak {
+      color: var(--muted);
+      font-size: clamp(14px, 4.5vw, 18px);
+    }
+
+    /* ===== 巨大ボタン ===== */
+    .bigBtn {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: min(62vh, 62svh);
+      border-radius: 20px;
+      border: 2px solid var(--btnBorder);
+      background:
+        radial-gradient(120% 120% at 80% -10%, #222 0%, #161616 40%, #121212 70%, #101010 100%);
+      color: var(--fg);
+      font-size: clamp(24px, 8vw, 40px);
+      font-weight: 800;
+      letter-spacing: .04em;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      text-transform: uppercase;
+      box-shadow: 0 6px 18px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.03);
+      transition: transform .02s ease, filter .08s ease;
+    }
+    .bigBtn:active { transform: translateY(1px) scale(0.998); filter: brightness(1.02); }
+    .hint { color: var(--muted); font-size: 13px; margin-top: 8px; }
+
+    /* ===== 下部操作 ===== */
+    .footer {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 8px; flex-wrap: wrap;
+    }
+    .btn {
+      border: 1px solid var(--btnBorder);
+      background: #131313;
+      color: var(--fg);
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .btn:active { transform: translateY(1px); }
+
+    /* ===== フラッシュ演出 ===== */
+    .flash-success { animation: flashSuccess 160ms ease; }
+    .flash-fail { animation: flashFail 180ms ease; }
+    @keyframes flashSuccess {
+      from { box-shadow: 0 0 0 0 rgba(45,212,191,0.0), 0 0 0 0 rgba(45,212,191,0.0) }
+      50% { box-shadow: 0 0 0 6px rgba(45,212,191,0.22), 0 0 60px 10px rgba(45,212,191,0.18) }
+      to { box-shadow: 0 0 0 0 rgba(45,212,191,0.0), 0 0 0 0 rgba(45,212,191,0.0) }
+    }
+    @keyframes flashFail {
+      from { box-shadow: 0 0 0 0 rgba(239,68,68,0.0), 0 0 0 0 rgba(239,68,68,0.0) }
+      50% { box-shadow: 0 0 0 6px rgba(239,68,68,0.22), 0 0 60px 10px rgba(239,68,68,0.18) }
+      to { box-shadow: 0 0 0 0 rgba(239,68,68,0.0), 0 0 0 0 rgba(239,68,68,0.0) }
+    }
+
+    /* ===== 勝利オーバーレイ ===== */
+    .overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.7);
+      display: none;
+      align-items: center; justify-content: center;
+      padding: 20px;
+      z-index: 10;
+      backdrop-filter: blur(2px);
+    }
+    .overlay.show { display: flex; }
+    .modal {
+      width: min(680px, 92vw);
+      background: #101010;
+      border: 1px solid var(--btnBorder);
+      border-radius: 16px;
+      padding: 18px;
+      text-align: center;
+      box-shadow: 0 10px 40px rgba(0,0,0,.45);
+    }
+    .modal h2 { margin: 8px 0 6px; font-size: clamp(22px, 7vw, 28px); }
+    .modal p { color: var(--muted); margin: 4px 0 10px; }
+    .modal .actions { margin-top: 12px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+    /* 証明/説明のdetails */
+    details {
+      margin-top: 10px;
+      border: 1px solid var(--btnBorder);
+      border-radius: 12px;
+      padding: 10px 12px;
+      color: var(--muted);
+    }
+    summary { cursor: pointer; color: var(--fg); font-weight: 600; }
+    code { background: #151515; padding: 1px 6px; border-radius: 6px; }
+
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+    <!-- 上部HUD -->
+    <div class="hud">
+      <div class="title">1/4096 チャレンジ</div>
+      <div class="chip" id="attempts">試行: 0</div>
+      <div class="chip" id="best">ベスト連続: 0</div>
+    </div>
+
+    <!-- 中央表示と巨大ボタン -->
+    <div class="center">
+      <div class="prob" id="prob">1 / 2¹</div>
+      <div class="subprob" id="probDetail">約50.000%｜次は 1/2 に挑戦</div>
+      <div class="streak" id="streak">連続成功: 0 / 12</div>
+
+      <button class="bigBtn" id="tryBtn" aria-label="タップして判定">
+        タップで判定
+      </button>
+      <div class="hint">成功で段階アップ、失敗で最初から。12連続成功でクリア。</div>
+    </div>
+
+    <!-- 下部操作 -->
+    <div class="footer">
+      <button class="btn" id="resetBtn">↻ リセット</button>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <button class="btn" id="soundBtn">🔊 効果音: ON</button>
+        <button class="btn" id="vibeBtn">📳 バイブ: ON</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 勝利オーバーレイ -->
+  <div class="overlay" id="winOverlay" role="dialog" aria-modal="true" aria-labelledby="winTitle">
+    <div class="modal">
+      <h2 id="winTitle">CLEAR! 1/4096 達成</h2>
+      <p id="winStats">総クリック: 0｜経過連続: 12｜ベスト連続: 12</p>
+      <div class="actions">
+        <button class="btn" id="againBtn">もう一度</button>
+        <button class="btn" id="shareBtn">結果を共有</button>
+      </div>
+      <details>
+        <summary>このゲームの公平性（判定の根拠）</summary>
+        <p>成功判定は <code>crypto.getRandomValues</code> で生成した32ビット整数 <code>X</code> を用い、条件 <code>X &lt; 2³¹</code> を成功とする。<br>
+           32ビットの取りうる値は 0..2³²−1 の一様分布なので、成功はちょうど半数（2³¹通り）になる。よって1回ごとの成功確率は厳密に 1/2 だ。<br>
+           連続12回成功の確率は (1/2)¹² = 1/4096。途中で失敗した場合は連続数が0に戻る。
+        </p>
+      </details>
+    </div>
+  </div>
+
+  <script>
+    // ===== ゲーム状態 =====
+    const TARGET_POW = 12; // 1/4096 = (1/2)^12
+    let attempts = 0;      // 総クリック数
+    let streak = 0;        // 連続成功数（0..12）
+    let bestStreak = Number(localStorage.getItem('bestStreak') || 0);
+    let clears = Number(localStorage.getItem('clears') || 0);
+
+    // 設定（ローカル保存）
+    let soundOn = (localStorage.getItem('soundOn') ?? '1') === '1';
+    let vibeOn  = (localStorage.getItem('vibeOn')  ?? '1') === '1';
+
+    // ===== DOM取得 =====
+    const probEl = document.getElementById('prob');
+    const probDetailEl = document.getElementById('probDetail');
+    const streakEl = document.getElementById('streak');
+    const attemptsEl = document.getElementById('attempts');
+    const bestEl = document.getElementById('best');
+    const tryBtn = document.getElementById('tryBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const soundBtn = document.getElementById('soundBtn');
+    const vibeBtn = document.getElementById('vibeBtn');
+
+    const winOverlay = document.getElementById('winOverlay');
+    const againBtn = document.getElementById('againBtn');
+    const shareBtn = document.getElementById('shareBtn');
+    const winStats = document.getElementById('winStats');
+
+    // ===== オーディオ =====
+    let audioCtx = null;
+    function ensureAudio() {
+      if (!soundOn) return;
+      if (!audioCtx) {
+        try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+        catch (e) { audioCtx = null; }
+      }
+    }
+    function beep(freq=880, ms=80, type='sine') {
+      if (!soundOn || !audioCtx) return;
+      const t0 = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, t0);
+      osc.connect(gain).connect(audioCtx.destination);
+      // 短いADSR
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(0.25, t0 + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + ms/1000);
+      osc.start(t0);
+      osc.stop(t0 + ms/1000 + 0.02);
+    }
+
+    // ===== 乱数（厳密な1/2判定） =====
+    function fairCoin() {
+      // cryptoがあれば 32bit一様整数 → X < 2^31 を成功とする（厳密に1/2）
+      if (window.crypto && crypto.getRandomValues) {
+        const a = new Uint32Array(1);
+        crypto.getRandomValues(a);
+        return (a[0] >>> 0) < 0x80000000; // 2^31
+      }
+      // フォールバック（Math.randomは実装依存だが、実用上はほぼ1/2）
+      return Math.random() < 0.5;
+    }
+
+    // ===== UI更新 =====
+    function pow2(n) { return 2 ** n; }
+    function formatPercent(p) {
+      if (p >= 1) return (p).toFixed(0) + '%';
+      if (p >= 0.1) return p.toFixed(2) + '%';
+      return p.toFixed(3) + '%';
+    }
+    function updateUI() {
+      // 次に挑戦する段階は 1 / 2^(streak+1)
+      const nextPow = Math.min(streak + 1, TARGET_POW);
+      const denom = pow2(nextPow);
+      const percent = 100 / denom;
+
+      probEl.textContent = `1 / 2^${nextPow}`;
+      probDetailEl.textContent = `約${formatPercent(percent)}｜次は 1/${denom} に挑戦`;
+      streakEl.textContent = `連続成功: ${streak} / ${TARGET_POW}`;
+      attemptsEl.textContent = `試行: ${attempts}`;
+      bestEl.textContent = `ベスト連続: ${bestStreak}`;
+      soundBtn.textContent = `🔊 効果音: ${soundOn ? 'ON' : 'OFF'}`;
+      vibeBtn.textContent  = `📳 バイブ: ${vibeOn ? 'ON' : 'OFF'}`;
+
+      document.title = (streak > 0 ? `連続${streak} ▶ ` : '') + '1/4096 チャレンジ';
+    }
+
+    function flash(target, ok) {
+      const cls = ok ? 'flash-success' : 'flash-fail';
+      target.classList.remove('flash-success', 'flash-fail');
+      // リフローでアニメ再適用
+      void target.offsetWidth;
+      target.classList.add(cls);
+    }
+
+    // ===== 判定処理 =====
+    function judgeOnce() {
+      attempts++;
+      ensureAudio();
+
+      const ok = fairCoin();
+      if (ok) {
+        streak++;
+        if (vibeOn && navigator.vibrate) navigator.vibrate(20);
+        beep(900 + streak * 12, 70, 'triangle');
+        flash(tryBtn, true);
+
+        // クリア条件: 12連続成功
+        if (streak >= TARGET_POW) {
+          bestStreak = Math.max(bestStreak, streak);
+          localStorage.setItem('bestStreak', String(bestStreak));
+          clears++;
+          localStorage.setItem('clears', String(clears));
+          showWin();
+          updateUI();
+          return;
+        }
+      } else {
+        if (vibeOn && navigator.vibrate) navigator.vibrate([12, 35, 90]);
+        beep(180, 120, 'sawtooth');
+        flash(tryBtn, false);
+        streak = 0;
+      }
+
+      bestStreak = Math.max(bestStreak, streak);
+      localStorage.setItem('bestStreak', String(bestStreak));
+      updateUI();
+    }
+
+    // ===== 勝利オーバーレイ =====
+    function showWin() {
+      winStats.textContent = `総クリック: ${attempts}｜連続成功: ${streak}｜ベスト連続: ${bestStreak}`;
+      winOverlay.classList.add('show');
+    }
+    function hideWin() { winOverlay.classList.remove('show'); }
+
+    // ===== イベント =====
+    tryBtn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      judgeOnce();
+    }, { passive: false });
+
+    resetBtn.addEventListener('click', () => {
+      attempts = 0; streak = 0;
+      updateUI();
+      hideWin();
+      flash(tryBtn, true); // 軽いフィードバック
+    });
+
+    soundBtn.addEventListener('click', () => {
+      soundOn = !soundOn;
+      localStorage.setItem('soundOn', soundOn ? '1' : '0');
+      if (soundOn) ensureAudio();
+      updateUI();
+    });
+
+    vibeBtn.addEventListener('click', () => {
+      vibeOn = !vibeOn;
+      localStorage.setItem('vibeOn', vibeOn ? '1' : '0');
+      updateUI();
+    });
+
+    againBtn.addEventListener('click', () => {
+      hideWin();
+      attempts = 0;
+      streak = 0;
+      updateUI();
+    });
+
+    shareBtn.addEventListener('click', async () => {
+      const text = `「1/4096 チャレンジ」クリア！連続${streak}回、総クリック${attempts}回`;
+      const url = location.href;
+      try {
+        if (navigator.share) {
+          await navigator.share({ text, url });
+        } else {
+          await navigator.clipboard.writeText(text + ' ' + url);
+          shareBtn.textContent = 'コピーした';
+          setTimeout(() => shareBtn.textContent = '結果を共有', 1400);
+        }
+      } catch (e) {
+        /* noop */
+      }
+    });
+
+    // キーボード対応（PC向け）
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' || e.code === 'Enter') {
+        e.preventDefault();
+        judgeOnce();
+      }
+      if (e.key === 'r') { attempts = 0; streak = 0; updateUI(); }
+    });
+
+    // 初期表示
+    updateUI();
+  </script>
+</body>
+</html>
